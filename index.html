@@ -55,12 +55,6 @@
 			$(document).ready(function(){	
 				aSprite.src = "fireball.png";
 				pSprite.src = "ss1.png";
-				let preload = ["ss2.png", "ss3.png", "ss4.png", "ss5.png"];
-				preload.forEach((el) => { // trick browser into loading the images
-					let cached = new Image(); // objects work only
-					cached.src = el; // reference it
-
-				})
 				
 				canvas = document.getElementById("stageCanvas");
 				ctx = canvas.getContext('2d');

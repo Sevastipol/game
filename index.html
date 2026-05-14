@@ -1,0 +1,315 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Game Template</title>
+		<style>
+			html {
+				width: 100%;
+				height: 100%;
+				clip: auto;
+				position: absolute;
+				overflow: hidden;
+			}
+			body { margin:0; } 
+			#settingsDiv{
+				/*display: none;	*/
+				font: 100;
+			}
+			#stageCanvas{
+				display: block;	
+			}
+			
+		</style>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+		<script>
+			
+			var TARGET_FPS=60; //10 to 60 are appropriate values.
+			var timeInterval = 1000/TARGET_FPS, timeForNextFrame=0;
+			var requestAnimationFrame = window.requestAnimationFrame || 
+				window.mozRequestAnimationFrame || 
+				window.webkitRequestAnimationFrame || 
+				window.msRequestAnimationFrame,canvas,ctx;
+
+			//Declare your global variables/constants/objects/arrays here
+			var mouse={x:11,y:11};
+			var player={x:55,y:66,xDir:0,yDir:0};
+			let playerHealth = 6;
+			var score=0, highScore=0;
+			var asteroids=[];
+			var shots=[];
+			var isShooting=false, timeForNextShot=0;
+			const SHOT_INTERVAL=200, SHOT_SPEED=5;
+			const MIN_SIZE=5, MAX_SIZE=20, SHIP_SPEED=4, SHIP_SIZE=20;
+			
+			const START=0, IN_GAME=1, GAME_OVER=2, PAUSED=3;
+			var gameState=START;
+			
+			const START_SPEED=2, SPEED_INCREASE = 0.05;
+			var currentSpeed=START_SPEED;
+			
+			var aSprite = new Image();
+			var pSprite = new Image();
+
+			//This is run once the page is fully loaded
+			$(document).ready(function(){	
+				aSprite.src = "fireball.png";
+				pSprite.src = "ss1.png";
+				let preload = ["ss2.png", "ss3.png", "ss4.png", "ss5.png"];
+				preload.forEach((el) => { // trick browser into loading the images
+					let cached = new Image(); // objects work only
+					cached.src = el; // reference it
+
+				})
+				
+				canvas = document.getElementById("stageCanvas");
+				ctx = canvas.getContext('2d');
+				
+				setInterval(function(){
+					if(gameState==IN_GAME){
+						spawnAsteroid()
+							
+					}
+				},1000);
+				$("#stageCanvas").bind("mousemove", function(event){
+					setMousePoint(event.offsetX,event.offsetY);
+					event.preventDefault();
+					return false;
+				});
+				document.addEventListener("mouseup", function(event){
+				//$("#stageCanvas").bind("mouseup", function(event){
+					isShooting=false;
+					event.preventDefault();
+					return false;
+				});
+				document.addEventListener("mousedown", function(event){
+				//$("#stageCanvas").bind("mousedown", function(event){
+					isShooting=true;
+					event.preventDefault();
+					return false;
+				});
+				
+				
+				
+				document.querySelector("#stageCanvas").addEventListener("click", function(event){
+					switch(gameState){
+						case START:
+							resetGame();
+							break;
+					}
+							
+					//setMousePoint(event.offsetX,event.offsetY);
+
+					event.preventDefault();
+					return false;
+				});
+				
+				$("#stageCanvas").bind("touchstart",   function(event) {
+					var rect = event.target.getBoundingClientRect();
+					let x = event.originalEvent.touches[0].pageX - rect.left; 
+					if(x<0)mouse.x=0;
+					if(x>canvas.width-1)x=canvas.width-1;
+					let y = event.originalEvent.touches[0].pageY - rect.top;
+					if(y<0)mouse.y=0;
+					if(y>canvas.height-1)y=canvas.height-1;
+					setMousePoint(x,y);
+					event.preventDefault()
+				});
+				
+				fullScreenCanvas();
+				mainGameLoop();
+			});
+			
+			function resetGame(){
+				gameState=IN_GAME;
+				currentSpeed=START_SPEED;
+				score=0;
+				asteroids=[];
+				shots=[];
+				spawnAsteroid();
+				spawnAsteroid();
+				spawnAsteroid();
+			}
+			
+			function spawnAsteroid(){
+				asteroids.push({x:canvas.width+MAX_SIZE,
+						 y:getRandomInt(MAX_SIZE,canvas.height-MAX_SIZE),
+						 yDir:getRandomDecimal(-0.5, 0.5),
+						 size:getRandomInt(MIN_SIZE,MAX_SIZE)});
+	
+			}
+			
+			function setMousePoint(x,y){
+				mouse.x=x;
+				mouse.y=y;
+			}
+
+			function damagePlayer() {
+				if (playerHealth > 2) { // 2 or over, in this case
+					playerHealth--;
+					switch(playerHealth) {
+						case 5: 
+							pSprite.src = "ss2.png";
+							drawInGameScreen();
+						break;
+						case 4:
+							pSprite.src = "ss3.png";
+							drawInGameScreen();
+						break;
+						case 3:
+							pSprite.src = "ss4.png";
+							drawInGameScreen();
+						break;
+						case 2:
+							pSprite.src = "ss5.png";
+							drawInGameScreen();
+						break;
+
+					}
+				} else {
+					gameState = GAME_OVER;
+				}
+			}
+			
+			function gameLogic(){
+				if(gameState != IN_GAME)return;
+				
+				if(isShooting && timeForNextShot < getTime()){
+					timeForNextShot =  getTime() + SHOT_INTERVAL;
+					shots.push({x:player.x, y:player.y})
+				}
+				for(let s=shots.length-1; s>=0; s--){
+					let shot=shots[s];
+					shot.x+=SHOT_SPEED;
+					
+				}
+				
+				
+				let xDiff = mouse.x-player.x;
+				let yDiff = mouse.y-player.y;
+				let distance = Math.hypot(xDiff, yDiff);
+				if(distance>1){
+					player.xDir = xDiff/distance;
+					player.yDir = yDiff/distance;
+					player.x += player.xDir*SHIP_SPEED;
+					player.y += player.yDir*SHIP_SPEED;
+				}
+				
+				for(let a=asteroids.length-1; a>=0; a--){
+					let ast=asteroids[a];
+					ast.x = ast.x-currentSpeed;
+					ast.y+=ast.yDir;
+
+					if(ast.x < 0){
+    ast.x = canvas.width+MAX_SIZE;
+} else if(ast.y < ast.size/2 || ast.y > canvas.height-ast.size/2){
+    ast.yDir *= -1;
+}
+
+let dist = Math.hypot(ast.x - player.x, ast.y - player.y);
+if(dist < ast.size/2 + SHIP_SIZE/2){
+	asteroids.splice(a, 1)
+    damagePlayer();
+}
+				}
+			}
+			
+
+			function renderScreen(){
+				ctx.fillStyle="black";
+				ctx.fillRect(0,0,canvas.width, canvas.height);
+				switch(gameState){
+					case START:
+						drawStartScreen();
+						break;
+					case IN_GAME:
+					case PAUSED:
+						drawInGameScreen();
+						if(gameState==PAUSED){
+							// add paused text	
+						}
+						break;
+					case GAME_OVER:
+						drawGameOverScreen();
+						break;
+				}
+				//ctx.fillStyle="yellow";
+				//ctx.fillRect(mouse.x,mouse.y,10, 10);
+			}
+			
+			function drawGameOverScreen(){
+				ctx.fillStyle="yellow";
+				ctx.font = "50px serif";
+				ctx.fillText(`Game over, final score ${score}`, 50, 90);
+				ctx.fillText(`Reload to play again`, 25, 45);
+				setTimeout(() => location.reload(), 3000)
+
+			}
+			function drawInGameScreen(){
+				ctx.drawImage(pSprite, 
+							  	  player.x-SHIP_SIZE/2,
+								  player.y-SHIP_SIZE/2,
+								  SHIP_SIZE,
+								  SHIP_SIZE);
+				
+				ctx.fillStyle="yellow";
+				for(const s of shots){
+					
+					ctx.fillRect(s.x-3,
+								  s.y-3,
+								  6,6);
+								  
+				}
+				
+				for(const a of asteroids){
+					ctx.drawImage(aSprite,
+								  a.x-a.size/2, 
+								  a.y-a.size/2,
+								  a.size,
+								  a.size);
+								  
+				}
+			}
+			
+
+			function drawStartScreen(){
+				ctx.fillStyle="yellow";
+				ctx.font = "50px serif";
+				ctx.fillText("Click to Play", 50, 90);
+			}
+
+			//You shouldn't need to edit any of the code below here. ----------------------------------------------------------------------------------------------------
+			function fullScreenCanvas(){
+				canvas.width  = document.documentElement.clientWidth;
+				canvas.height = document.documentElement.clientHeight ;
+			}
+
+			function mainGameLoop(){
+				requestAnimationFrame(mainGameLoop);
+				if(timeForNextFrame<getTime()){
+					timeForNextFrame=getTime()+timeInterval;
+					gameLogic();
+					renderScreen();
+				}
+			}
+
+			function getRandomInt(min, max){
+				return Math.floor(Math.random() * (max - min + 1)) + min; 
+			}
+
+			function getRandomDecimal(min, max) {
+				return Math.random() * (max - min) + min;
+			}
+
+			function getTime(){
+				return new Date().getTime();
+			}
+		</script>
+	</head>
+	<body> <!--Add this to the body tag to disable right-click context menus:
+			oncontextmenu="return false;"
+			It should look like this: <body oncontextmenu="return false;">-->
+		<canvas id='stageCanvas' width=400 height=500></canvas>
+		<div id='settingsDiv'>XXXXX<br>xdsdsd</div>
+	</body>
+</html>
